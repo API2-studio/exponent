@@ -1,0 +1,74 @@
+{
+    "action": "create",
+    "type": "structure",    
+    "body": {
+        "name": "tasks",
+        "parent": "base",
+        "schema": [
+            {
+                "name": "created_by",
+                "type": "uuid",
+                "options": {
+                    "foreign_key": true,
+                    "references_table": "users",
+                    "references_column": "id",
+                    "relation_type": "one-to-many"
+                }
+            },
+            {
+                "name": "updated_by",
+                "type": "uuid",
+                "options": {
+                    "foreign_key": true,
+                    "references_table": "users",
+                    "references_column": "id",
+                    "relation_type": "one-to-many"
+                }
+            },
+            {
+                "name": "assigned_to",
+                "type": "uuid",
+                "options": {
+                    "foreign_key": true,
+                    "references_table": "users",
+                    "references_column": "id",
+                    "relation_type": "one-to-many"
+                }
+            },
+            {
+                "name": "name",
+                "type": "varchar",
+                "options": {
+                    "required": true,
+                    "default": "Task"
+                }
+            },
+            {
+                "name": "description",
+                "type": "varchar",
+                "options": {
+                    "required": true,
+                    "default": "Task description"
+                }
+            },
+            {
+                "name": "state_id",
+                "type": "uuid",
+                "options": {
+                    "foreign_key": true,
+                    "references_table": "state",
+                    "references_column": "id",
+                    "relation_type": "one-to-one"
+                }
+            },
+            {
+                "name": "due_date",
+                "type": "timestamptz",
+                "options": {
+                    "default": "(now() at time zone 'utc')",
+                    "required": true
+                }
+            }
+        ]
+    }
+}

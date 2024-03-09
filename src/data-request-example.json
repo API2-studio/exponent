@@ -1,0 +1,19 @@
+{
+    "action": "read",
+    "type": "data",
+    "body": {
+        "id": "0e72211f-1fb7-4d8c-a539-ee306a9960eb",
+        "encoded": "queryType=join^joinType=inner^tableReference=state^targetColumn=state.id^localColumn=tasks.state_id^orderBy=tasks.inserted_at^orderSymbol=ASC^offsetBy=0^limitBy=500^groupedBy=tasks.inserted_at$tasks.due_date$state.name$tasks.id$tasks.name$tasks.updated_at$state^[%tasks.state_id=state.id]*AND*%state.enum>=0*AND*&&queryType=join^joinType=inner^tableReference=users^localColumn=tasks.assigned_to^targetColumn=users.id^groupedBy=users.id$users.name$tasks.due_date$tasks.inserted_at^%users.id=tasks.assigned_to*AND*%tasks.deleted_at=null",
+        "schema": [
+            {
+                "name": "task_name",
+                "field": "tasks.name"
+            },
+            {
+                "name": "state",
+                "field": "state"
+            }
+        ],
+        "script": "return data.map(function(row) { return { task_name: row[0], state: row[1] }; });"
+    }
+}
