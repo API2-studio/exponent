@@ -104,6 +104,10 @@ export default class API2SchemaBuilder {
     build() {
         return this.schema;
     }
+
+    encode() {
+        return JSON.stringify(this.schema);
+    }
 }
 
 // The API2SchemaBuilder class is used to build a schema for the API2RequestBuilder

@@ -91,27 +91,21 @@ export default class API2QueryEncoder {
         return this;
     }
 
-    encode() {
-        // trim the first ^ character from the encoded string
-        // this.encoded = this.encoded.slice(1);
+    build() {
         return this.encoded;
     }
-    
-    async decode() {
-        let request = {
-            action: "read",
-            type: "data",
-            body: {
-                id: this.id,
-                schema: this.schema,
-                encoded: this.encoded
-            }
-        }
-        // make request to the server
-        let response = await axios.post(`${process.env.API_URL}/helpers/decode`, request);
-        return response;
+
+    encode() {
+        return encodeURIComponent(this.encoded);
     }
     
+    async decode(request = {
+        encoded: this.encoded
+    }) {
+        // make request to the server
+        let response = await axios.post(`${process.env.API_URL}/helpers/decode/encoded`, request);
+        return response;
+    }
 }
 
 

@@ -123,31 +123,30 @@ var API2QueryEncoder = exports["default"] = /*#__PURE__*/function () {
       return this;
     }
   }, {
+    key: "show",
+    value: function show() {
+      return this.encoded;
+    }
+  }, {
     key: "encode",
     value: function encode() {
-      // trim the first ^ character from the encoded string
-      // this.encoded = this.encoded.slice(1);
-      return this.encoded;
+      return encodeURIComponent(this.encoded);
     }
   }, {
     key: "decode",
     value: function () {
       var _decode = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee() {
-        var request, response;
+        var request,
+          response,
+          _args = arguments;
         return _regeneratorRuntime().wrap(function _callee$(_context) {
           while (1) switch (_context.prev = _context.next) {
             case 0:
-              request = {
-                action: "read",
-                type: "data",
-                body: {
-                  id: this.id,
-                  schema: this.schema,
-                  encoded: this.encoded
-                }
-              }; // make request to the server
+              request = _args.length > 0 && _args[0] !== undefined ? _args[0] : {
+                encoded: this.encoded
+              };
               _context.next = 3;
-              return _axios["default"].post("".concat(process.env.API_URL, "/helpers/decode"), request);
+              return _axios["default"].post("".concat(process.env.API_URL, "/helpers/decode/encoded"), request);
             case 3:
               response = _context.sent;
               return _context.abrupt("return", response);
