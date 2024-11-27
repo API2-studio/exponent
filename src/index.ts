@@ -9,16 +9,16 @@ import {AuthAPI} from './api/auth';
 
 class API2 {
   user: UserAPI;
-  configuration: ConfigAPI;
+  config: ConfigAPI;
   docs: DocsAPI;
   table: TableAPI;
   auth: AuthAPI;
 
-  constructor(config: SDKConfig) {
-    Config.initialize(config);
+  constructor(configuration: SDKConfig) {
+    Config.initialize(configuration);
     const client = new APIClient();
     this.user = new UserAPI(client);
-    this.configuration = new ConfigAPI(client);
+    this.config = new ConfigAPI(client);
     this.docs = new DocsAPI(client);
     this.table = new TableAPI(client);
     this.auth = new AuthAPI(client);
