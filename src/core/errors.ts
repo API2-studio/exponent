@@ -9,8 +9,9 @@ export class API2Error extends Error {
     this.statusCode = statusCode;
     this.details = details;
 
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, API2Error);
+    const errorConstructor = Error as any;
+    if (errorConstructor.captureStackTrace) {
+      errorConstructor.captureStackTrace(this, API2Error);
     }
   }
 }

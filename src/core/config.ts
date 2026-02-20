@@ -5,6 +5,7 @@ export interface SDKConfig {
   timeout?: number;
   retryCount?: number;
   retryDelay?: number;
+  permissions?: Record<string, string[]>;
 }
 
 export class Config {
@@ -17,6 +18,7 @@ export class Config {
       timeout: 10000,
       retryCount: 3,
       retryDelay: 1000,
+      permissions: {},
       ...config,
     };
   }

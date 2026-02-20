@@ -1,6 +1,6 @@
 // Auth API 
-import { permission } from 'process';
-import API2Client from '../core/client';
+import APIClient from '../core/client';
+import { PermissionManager, PermissionMatrix } from '../core/permissions';
 
 export interface Role {
     id: string,
@@ -80,37 +80,33 @@ export interface PasswordConfirmation {
     password_confirmation: string
 }
 
-export interface PasswordResetToken {
-    token: string
+export interface AuthUser {
+    id: string,
+    name: string,
+    email: string,
+    avatar: string,
+    avatar_url: string,
+    inserted_at: string,
+    updated_at: string,
+    deleted_at: string,
+    archived_at: string
 }
 
-
-export interface AuthData {
+export interface AuthResponse {
     data: {
         token: string,
-        permissions: [{
-            [PermissionName: string]: [
-                [Permission: string]
-            ] 
-        }],
-        user: {
-            id: string,
-            name: string,
-            email: string,
-            avatar: string,
-            avatar_url: string,
-            inserted_at: string,
-            updated_at: string,
-            deleted_at: string,
-            archived_at: string
-        }
+        permissions: PermissionMatrix | string[],
+        user: AuthUser
     }
 }
 
 
 
 export class AuthAPI {
-    constructor(private client: API2Client) {}
+    constructor(
+        private client: APIClient,
+        private permissions: PermissionManager,
+    ) {}
 
     setToken(token: string) {
         const config = this.client.getConfig();
@@ -124,14 +120,13 @@ export class AuthAPI {
                 password
             }
         }
-        const auth =  this.client.request('POST', '/api/v1/authentication/identity/callback', payload).then((response: any) => {
-            const result = response.data as AuthData;
-            const token = result.token;
-
-            this.setToken(token);   
-            return response;
-        });
-        return auth;
+        return this.client.request<AuthResponse>('POST', '/api/v1/authentication/identity/callback', payload)
+            .then((response) => {
+                const { token, permissions } = response.data;
+                this.setToken(token);
+                this.permissions.setPermissions(permissions);
+                return response;
+            });
     }
 
     logout(token: string) {
@@ -156,4 +151,3 @@ export class AuthAPI {
 
     // TODO: Implement the rest of the methods (password reset, etc.)
 }
-

@@ -99,5 +99,9 @@ export class TableAPI {
 
   deleteTable(tableId: string) {
     return this.client.request('DELETE', `/api/v1/tables/${tableId}`);
-  } 
+  }
+  
+  getTableByName(tableName: string) {
+    return this.client.request('GET', `/api/v1/structure/${tableName}`);
+  }
 }
