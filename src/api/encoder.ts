@@ -1,14 +1,26 @@
-import axios from 'axios';
-export default class API2QueryEncoder {
-    constructor() {
-      this.reset();
-      this.groupBy = [];
-      this.encoded = '';
-    }
+import API2Client from '../core/client';
 
+export class EncoderAPI {
+    constructor(
+        private client: API2Client,
+        private encoded: string = '', 
+        private groupBy: string[] = []
+    ) { }
+
+    // reset the encoder
     reset() {
         this.encoded = '';
         this.groupBy = [];
+    }
+
+    // set the query type
+    setEncoded(encoded) {
+        this.encoded = encoded;
+        return this;
+    }
+
+    getEncoded() {
+        return this.encoded;
     }
 
     setQueryType(query_type) {
@@ -62,6 +74,9 @@ export default class API2QueryEncoder {
         if (Array.isArray(columns)) {
             columns = columns.join('$');
             console.error(columns);
+        } else {
+            columns = columns;
+            console.error(columns);
         }
         this.encoded += `groupedBy=${columns}^`;
         return this;
@@ -91,6 +106,16 @@ export default class API2QueryEncoder {
         return this;
     }
 
+    setOpenParenthesis() {
+        this.encoded += '[';
+        return this;
+    }
+
+    setCloseParenthesis() {
+        this.encoded += ']';
+        return this;
+    }
+
     build() {
         return this.encoded;
     }
@@ -99,13 +124,5 @@ export default class API2QueryEncoder {
         return encodeURIComponent(this.encoded);
     }
     
-    async decode(request = {
-        encoded: this.encoded
-    }) {
-        // make request to the server
-        let response = await axios.post(`${process.env.API_URL}/helpers/decode/encoded`, request);
-        return response;
-    }
 }
-
-
+    

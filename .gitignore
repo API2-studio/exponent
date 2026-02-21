@@ -1,3 +1,13 @@
+/node_modules/
+/dist/
+/build/
+/coverage/
+/.pnp/
+.pnp.js
+
+# Temporary files, for example, from tests.
+/tmp/
+
+/secrets/*
+
 .env
-dist/
-node_modules/
