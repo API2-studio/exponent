@@ -40,14 +40,17 @@ class API2 {
     Config.initialize(configuration);
     const client = new APIClient();
     const permissions = new PermissionManager();
+    const dynamic = new DynamicAPI(client);
     this.user = new UserAPI(client);
     this.config = new ConfigAPI(client);
     this.docs = new DocsAPI(client);
     this.table = new TableAPI(client);
-    this.auth = new AuthAPI(client, permissions);
+    this.auth = new AuthAPI(client, permissions, async () => {
+      await dynamic.refresh();
+    });
     this.encoder = new EncoderAPI(client);
     this.data = new DataAPI(client, this.encoder);
-    this.dynamic = new DynamicAPI(client);
+    this.dynamic = dynamic;
     this.roles = new RoleAPI(client);
     this.groups = new GroupAPI(client);
     this.workflows = new WorkflowAPI(client);

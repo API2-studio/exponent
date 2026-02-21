@@ -106,6 +106,7 @@ export class AuthAPI {
     constructor(
         private client: APIClient,
         private permissions: PermissionManager,
+        private onLogin?: () => Promise<void> | void,
     ) {}
 
     setToken(token: string) {
@@ -113,20 +114,21 @@ export class AuthAPI {
         config.set('accessToken', token);
     }
 
-    login(email: string, password: string) {
+    async login(email: string, password: string) {
         const payload = {
             user: {
                 email,
                 password
             }
         }
-        return this.client.request<AuthResponse>('POST', '/api/v1/authentication/identity/callback', payload)
-            .then((response) => {
-                const { token, permissions } = response.data;
-                this.setToken(token);
-                this.permissions.setPermissions(permissions);
-                return response;
-            });
+        const response = await this.client.request<AuthResponse>('POST', '/api/v1/authentication/identity/callback', payload);
+        const { token, permissions } = response.data;
+        this.setToken(token);
+        this.permissions.setPermissions(permissions);
+        if (this.onLogin) {
+            await this.onLogin();
+        }
+        return response;
     }
 
     logout(token?: string) {

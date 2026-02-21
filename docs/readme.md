@@ -28,7 +28,7 @@ await api.auth.login('user@example.com', 'password'); // sets access token + per
 ---
 
 ### Auth (`src/api/auth.ts`)
-- `login(email, password)` → sets access token + permissions.
+- `login(email, password)` → sets access token + permissions, then auto-refreshes dynamic endpoints.
 - `logout(token?)`
 - `register(userData)`
 - `checkRoleRegistrable(roleId)`
@@ -110,7 +110,8 @@ const openapi = await api.docs.getOpenAPISchema();
 - `deleteConfig(id)`
 
 ### Dynamic Endpoints (`src/api/dynamic.ts`)
-- `await api.dynamic.refresh()` pulls endpoint definitions from `/api/v1/endpoints` and builds functions at `api.dynamic.endpoints`.
+- `login()` automatically calls `dynamic.refresh()` after successful authentication.
+- `await api.dynamic.refresh()` is still available to manually re-sync endpoint definitions from `/api/v1/endpoints`.
 - `refresh()` includes required list params: `limit`, `offset`, `page`, `page_size`, `sort_field`, `sort_direction`.
 - `refresh()` requires an auth access token (call `api.auth.login(...)` first).
 - Dynamic endpoint definitions are cached in browser `localStorage`, so generated functions are restored after page refresh.
@@ -120,6 +121,7 @@ const openapi = await api.docs.getOpenAPISchema();
 ```ts
 await api.auth.login('user@example.com', 'password');
 
+// Optional manual re-sync if endpoints changed server-side
 await api.dynamic.refresh({
   page: 1,
   page_size: 50,

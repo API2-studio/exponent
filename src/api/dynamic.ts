@@ -36,10 +36,10 @@ export class DynamicAPI {
   endpoints: Record<string, DynamicFunction> = {};
   private static readonly ENDPOINTS_STORAGE_KEY_PREFIX = 'api2_sdk_dynamic_endpoints:';
   private readonly defaultListParams: EndpointListParams = {
-    limit: 100,
+    limit: 1000000,
     offset: 0,
     page: 1,
-    page_size: 100,
+    page_size: 10000,
     sort_field: 'inserted_at',
     sort_direction: 'asc',
   };
