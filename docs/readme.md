@@ -193,13 +193,9 @@ if (api.permissions.has('tables:create')) { /* render */ }
 ```
 
 ### Error Handling
-Errors in the SDK are thrown by the underlying HTTP request mechanism and should be caught using `try-catch` blocks or `.catch()` on promises.
+- Requests throw typed errors (`AuthenticationError`, `ClientError`, `ServerError`, `NetworkError`, `API2Error`). Wrap calls with try/catch.
 
-#### Example:
-```javascript
-request.get('path/to/resource')
-       .then(response => console.log(response))
-       .catch(error => console.error('Error:', error));
-```
-
-By detailing each component with its purpose, configuration, and usage examples, users of your SDK will have a clearer understanding of how to integrate it into their applications.
+### Tips
+- Call `refresh()` on `dynamic` after login if endpoint visibility depends on auth.
+- Cache your `api` instance; `Config` and `PermissionManager` are singletons.
+- `baseURL` defaults to `http://localhost` if not provided.
