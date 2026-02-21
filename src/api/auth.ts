@@ -110,7 +110,7 @@ export class AuthAPI {
 
     setToken(token: string) {
         const config = this.client.getConfig();
-        config.set('apiKey', token);
+        config.set('accessToken', token);
     }
 
     login(email: string, password: string) {
@@ -129,8 +129,24 @@ export class AuthAPI {
             });
     }
 
-    logout(token: string) {
-        return this.client.request('POST', '/api/v1/authentication/identity/revoke', { token });
+    logout(token?: string) {
+        const config = this.client.getConfig();
+        const revokeToken = token || (config.get('accessToken') as string | undefined);
+
+        const clearSession = () => {
+            config.set('accessToken', undefined);
+            this.permissions.clear();
+        };
+
+        if (!revokeToken) {
+            clearSession();
+            return Promise.resolve();
+        }
+
+        return this.client.request('POST', '/api/v1/authentication/identity/revoke', { token: revokeToken })
+            .finally(() => {
+                clearSession();
+            });
     }
 
     register(userData: UserRegistration) {

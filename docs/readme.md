@@ -10,12 +10,15 @@ const api = new API2({
   timeout: 10000,
 });
 
-await api.auth.login('user@example.com', 'password'); // sets token + permissions
+await api.auth.login('user@example.com', 'password'); // sets access token + permissions
 ```
 
 ### Core Concepts
-- `api.client`: Axios-backed client with bearer auth.
+- `api.client`: Axios-backed client; sends `x-api-key` from config and `Authorization: Bearer <accessToken>` after login.
+- SDK auto-initializes via `POST /api/v1/sdk/init` using `x-api-key: <apiKey>`. Requests are blocked unless init returns HTTP `200` with `{ status: 'ok' }`.
+- All requests require login first, except SDK init and the login endpoint itself.
 - `Config` singleton stores `apiKey`, `baseURL`, `timeout`, and cached `permissions`.
+- `accessToken` is persisted in browser `localStorage` after login and restored on page refresh until `logout()` is called.
 - Permission checks before rendering UI:
   ```ts
   if (api.permissions.has('tables:create')) showCreateButton();
@@ -25,8 +28,8 @@ await api.auth.login('user@example.com', 'password'); // sets token + permission
 ---
 
 ### Auth (`src/api/auth.ts`)
-- `login(email, password)` → sets token + permissions.
-- `logout(token)`
+- `login(email, password)` → sets access token + permissions.
+- `logout(token?)`
 - `register(userData)`
 - `checkRoleRegistrable(roleId)`
 - `listRegistrableRoles()`
@@ -107,14 +110,74 @@ const openapi = await api.docs.getOpenAPISchema();
 - `deleteConfig(id)`
 
 ### Dynamic Endpoints (`src/api/dynamic.ts`)
-- `await api.dynamic.refresh()` pulls OpenAPI and builds functions at `api.dynamic.endpoints`.
+- `await api.dynamic.refresh()` pulls endpoint definitions from `/api/v1/endpoints` and builds functions at `api.dynamic.endpoints`.
+- `refresh()` includes required list params: `limit`, `offset`, `page`, `page_size`, `sort_field`, `sort_direction`.
+- `refresh()` requires an auth access token (call `api.auth.login(...)` first).
+- Dynamic endpoint definitions are cached in browser `localStorage`, so generated functions are restored after page refresh.
 - Call signature: `fn({ pathParams?, query?, body? })`.
+- Function names are generated from endpoint descriptions (fallback: method + path).
 
 ```ts
-await api.dynamic.refresh();
-const users = await api.dynamic.endpoints.getApiV1Users();
-const user = await api.dynamic.endpoints.getApiV1UsersId({ pathParams: { id: '123' } });
-const created = await api.dynamic.endpoints.postApiV1Users({ body: { name: 'Jane' } });
+await api.auth.login('user@example.com', 'password');
+
+await api.dynamic.refresh({
+  page: 1,
+  page_size: 50,
+  sort_field: 'inserted_at',
+  sort_direction: 'asc',
+});
+
+// GET example
+const users = await api.dynamic.endpoints.getAllUsers({
+  query: { limit: 2000, offset: 0, page: 1, page_size: 20, sort_field: 'name', sort_direction: 'asc' },
+});
+
+// GET with filters example
+const filteredUsers = await api.dynamic.endpoints.getAllUsers({
+  query: {
+    limit: 2000,
+    offset: 0,
+    page: 1,
+    page_size: 20,
+    sort_field: 'inserted_at',
+    sort_direction: 'desc',
+    name: 'Jane',
+    email: 'jane@example.com',
+  },
+});
+
+// GET with path params example
+const role = await api.dynamic.endpoints.getARolesById?.({
+  pathParams: { id: '9cac5fac-e862-4f90-ab04-c6e023a87313' },
+});
+
+// POST example
+const created = await api.dynamic.endpoints.createARole?.({
+  body: { name: 'Editor', permissions: { users: ['read'] }, registerable: false },
+});
+
+// PUT example
+const replaced = await api.dynamic.endpoints.updateARole?.({
+  pathParams: { id: '9cac5fac-e862-4f90-ab04-c6e023a87313' },
+  body: { name: 'Editor', permissions: { users: ['read', 'update'] }, registerable: false },
+});
+
+// PATCH example
+const patched = await api.dynamic.endpoints.patchARole?.({
+  pathParams: { id: '9cac5fac-e862-4f90-ab04-c6e023a87313' },
+  body: { registerable: true },
+});
+
+// DELETE example
+await api.dynamic.endpoints.deleteARole?.({
+  pathParams: { id: '9cac5fac-e862-4f90-ab04-c6e023a87313' },
+});
+
+// OPTIONS example (only if such an endpoint exists)
+const optionsMeta = await api.dynamic.endpoints.optionsRoles?.();
+
+// HEAD example (only if such an endpoint exists)
+const headMeta = await api.dynamic.endpoints.headRoles?.();
 ```
 
 ### Permissions (`src/core/permissions.ts`)
@@ -131,6 +194,6 @@ if (api.permissions.has('tables:create')) { /* render */ }
 - Requests throw typed errors (`AuthenticationError`, `ClientError`, `ServerError`, `NetworkError`, `API2Error`). Wrap calls with try/catch.
 
 ### Tips
-- Call `refresh()` on `dynamic` after login if the spec depends on auth.
+- Call `refresh()` on `dynamic` after login if endpoint visibility depends on auth.
 - Cache your `api` instance; `Config` and `PermissionManager` are singletons.
 - `baseURL` defaults to `http://localhost` if not provided.

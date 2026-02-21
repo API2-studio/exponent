@@ -1,6 +1,7 @@
 import APIClient from '../core/client';
 
 type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'options' | 'head';
+type SortDirection = 'asc' | 'desc';
 
 export interface DynamicCallArgs {
   pathParams?: Record<string, string | number>;
@@ -10,42 +11,102 @@ export interface DynamicCallArgs {
 
 export type DynamicFunction = (args?: DynamicCallArgs) => Promise<any>;
 
+interface EndpointListParams {
+  limit: number;
+  offset: number;
+  page: number;
+  page_size: number;
+  sort_field: string;
+  sort_direction: SortDirection;
+}
+
+interface EndpointRecord {
+  id?: string;
+  url?: string;
+  method?: string;
+  description?: string;
+  enabled?: boolean;
+}
+
+interface EndpointListResponse {
+  data?: EndpointRecord[];
+}
+
 export class DynamicAPI {
   endpoints: Record<string, DynamicFunction> = {};
+  private static readonly ENDPOINTS_STORAGE_KEY_PREFIX = 'api2_sdk_dynamic_endpoints:';
+  private readonly defaultListParams: EndpointListParams = {
+    limit: 100,
+    offset: 0,
+    page: 1,
+    page_size: 100,
+    sort_field: 'inserted_at',
+    sort_direction: 'asc',
+  };
 
   constructor(
     private client: APIClient,
-    private schemaUrl = '/api/v1/api/openapi'
-  ) {}
+    private endpointsUrl = '/api/v1/endpoints'
+  ) {
+    const cachedEndpoints = this.readStoredEndpoints();
+    this.buildFromEndpointList(cachedEndpoints);
+  }
 
-  /** Fetch OpenAPI spec and rebuild the function map. */
-  async refresh(): Promise<Record<string, DynamicFunction>> {
-    const spec = await this.client.request<any>('GET', this.schemaUrl);
-    this.buildFromSpec(spec);
+  /** Fetch endpoint definitions and rebuild the function map. */
+  async refresh(params: Partial<EndpointListParams> = {}): Promise<Record<string, DynamicFunction>> {
+    const accessToken = this.client.getConfig().get('accessToken') as string | undefined;
+    if (!accessToken) {
+      throw new Error('DynamicAPI.refresh requires an access token. Call api.auth.login(...) before refresh().');
+    }
+
+    const requestParams = { ...this.defaultListParams, ...params };
+    const url = this.buildUrl(this.endpointsUrl, undefined, requestParams);
+    const response = await this.client.request<EndpointListResponse>('GET', url);
+    const records = response?.data || [];
+    this.buildFromEndpointList(records);
+    this.storeEndpoints(records);
     return this.endpoints;
   }
 
-  private buildFromSpec(spec: any) {
+  private buildFromEndpointList(records?: EndpointRecord[]) {
     this.endpoints = {};
-    if (!spec?.paths) return;
+    if (!records?.length) return;
 
-    Object.entries<any>(spec.paths).forEach(([path, methods]) => {
-      Object.entries<any>(methods || {}).forEach(([method, def]) => {
-        const httpMethod = method.toLowerCase() as HttpMethod;
-        const name = this.buildName(def?.operationId, httpMethod, path);
-        this.endpoints[name] = (args: DynamicCallArgs = {}) => {
-          const url = this.buildUrl(path, args.pathParams, args.query);
-          const payload = httpMethod === 'get' || httpMethod === 'delete' ? undefined : args.body;
-          return this.client.request(httpMethod.toUpperCase(), url, payload);
-        };
-      });
+    records.forEach((endpoint) => {
+      if (!endpoint?.url || !endpoint?.method) return;
+      if (endpoint.enabled === false) return;
+
+      const method = endpoint.method.toLowerCase();
+      if (!this.isHttpMethod(method)) return;
+
+      const httpMethod = method;
+      const name = this.buildName(endpoint.description, httpMethod, endpoint.url);
+      const hasCollision = Boolean(this.endpoints[name]);
+
+      const call: DynamicFunction = (args: DynamicCallArgs = {}) => {
+        const url = this.buildUrl(endpoint.url as string, args.pathParams, args.query);
+        const payload = httpMethod === 'get' || httpMethod === 'delete' ? undefined : args.body;
+        return this.client.request(httpMethod.toUpperCase(), url, payload);
+      };
+      this.endpoints[name] = call;
+
+      // Keep generated names unique even if descriptions or paths collide.
+      if (endpoint.id && hasCollision) {
+        this.endpoints[`${name}_${endpoint.id.replace(/-/g, '')}`] = call;
+      }
     });
   }
 
-  private buildName(operationId: string | undefined, method: string, path: string): string {
-    if (operationId) return this.toCamel(operationId);
+  private buildName(description: string | undefined, method: string, path: string): string {
+    if (description) {
+      return this.toCamel(description);
+    }
     const raw = `${method}_${path}`.replace(/[{}/]+/g, '_');
     return this.toCamel(raw.replace(/_+/g, '_'));
+  }
+
+  private isHttpMethod(method: string): method is HttpMethod {
+    return ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'].includes(method);
   }
 
   private toCamel(value: string): string {
@@ -77,5 +138,36 @@ export class DynamicAPI {
     });
     return params.toString();
   }
-}
 
+  private storeEndpoints(records: EndpointRecord[]): void {
+    const storage = this.getStorage();
+    if (!storage) return;
+    storage.setItem(this.getStorageKey(), JSON.stringify(records));
+  }
+
+  private readStoredEndpoints(): EndpointRecord[] {
+    const storage = this.getStorage();
+    if (!storage) return [];
+    const raw = storage.getItem(this.getStorageKey());
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private getStorageKey(): string {
+    const baseURL = this.client.getConfig().get('baseURL') as string | undefined;
+    return `${DynamicAPI.ENDPOINTS_STORAGE_KEY_PREFIX}${baseURL || 'default'}`;
+  }
+
+  private getStorage(): Storage | undefined {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return undefined;
+    }
+    return window.localStorage;
+  }
+}
