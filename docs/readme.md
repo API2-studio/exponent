@@ -61,7 +61,7 @@ const users = await api.user.listUsers({ limit: 20 });
 const table = await api.table.getTable('tbl_123');
 await api.table.createTable({
   action: 'create',
-  type: 'table',
+  type: 'structure',
   body: { name: 'projects', parent: 'root', schema: [] },
 });
 ```
@@ -73,8 +73,8 @@ await api.table.createTable({
 
 ```ts
 const roles = await api.roles.listRoles();
-await api.groups.createGroup({ name: 'QA', description: 'Testers' });
-await api.workflows.updateWorkflow('flow_1', { status: 'active' });
+await api.groups.createGroup({ name: 'QA' });
+await api.workflows.updateWorkflow('9cac5fac-e862-4f90-ab04-c6e023a87313', { status: 'active' });
 ```
 
 ### Data & Encoder (`src/api/data.ts`, `src/api/encoder.ts`)
@@ -83,12 +83,12 @@ await api.workflows.updateWorkflow('flow_1', { status: 'active' });
 
 ```ts
 api.data.encoderReset();
-api.data.setQueryType('select');
+api.data.setQueryType('condition');
 api.data.setTableReference('tasks');
 api.data.setCondition({ identifier: 'status', operator: '=', value: 'open' });
 const encoded = api.data.getEncoded();
 
-const tasks = await api.data.listData('tasks', { encoded });
+const tasks = await api.data.listData('9cac5fac-e862-4f90-ab04-c6e023a87313', { encoded });
 ```
 
 ### Docs (`src/api/docs.ts`)
@@ -144,28 +144,27 @@ const filteredUsers = await api.dynamic.endpoints.getAllUsers({
     sort_field: 'inserted_at',
     sort_direction: 'desc',
     name: 'Jane',
-    email: 'jane@example.com',
   },
 });
 
 // GET with path params example
-const role = await api.dynamic.endpoints.getARolesById?.({
+const role = await api.dynamic.endpoints.getARolesById({
   pathParams: { id: '9cac5fac-e862-4f90-ab04-c6e023a87313' },
 });
 
 // POST example
-const created = await api.dynamic.endpoints.createARole?.({
+const created = await api.dynamic.endpoints.createARole({
   body: { name: 'Editor', permissions: { users: ['read'] }, registerable: false },
 });
 
 // PUT example
-const replaced = await api.dynamic.endpoints.updateARole?.({
+const replaced = await api.dynamic.endpoints.updateARole({
   pathParams: { id: '9cac5fac-e862-4f90-ab04-c6e023a87313' },
   body: { name: 'Editor', permissions: { users: ['read', 'update'] }, registerable: false },
 });
 
 // PATCH example
-const patched = await api.dynamic.endpoints.patchARole?.({
+const patched = await api.dynamic.endpoints.patchARole({
   pathParams: { id: '9cac5fac-e862-4f90-ab04-c6e023a87313' },
   body: { registerable: true },
 });
@@ -176,21 +175,15 @@ await api.dynamic.endpoints.deleteARole?.({
 });
 
 // OPTIONS example (only if such an endpoint exists)
-const optionsMeta = await api.dynamic.endpoints.optionsRoles?.();
+const optionsMeta = await api.dynamic.endpoints.optionsRoles();
 
 // HEAD example (only if such an endpoint exists)
-const headMeta = await api.dynamic.endpoints.headRoles?.();
+const headMeta = await api.dynamic.endpoints.headRoles();
 ```
 
 ### Permissions (`src/core/permissions.ts`)
-- `setPermissions(matrixOrList)`
-- `has(code)`, `hasAll(list)`, `hasAny(list)`
+- `hasAll(list)`, `hasAny(list)`
 - `clear()`, `getPermissions()`
-
-```ts
-api.permissions.setPermissions({ tables: ['read', 'create'] });
-if (api.permissions.has('tables:create')) { /* render */ }
-```
 
 ### Error Handling
 - Requests throw typed errors (`AuthenticationError`, `ClientError`, `ServerError`, `NetworkError`, `API2Error`). Wrap calls with try/catch.
