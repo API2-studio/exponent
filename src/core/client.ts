@@ -1,34 +1,18 @@
 
-import axios, { AxiosInstance } from 'axios';
 import { Config } from './config';
 import { AuthenticationError, ClientError, ServerError, NetworkError, API2Error } from './errors';
 
 class APIClient {
-  private httpClient: AxiosInstance;
+  private baseURL: string;
+  private timeout: number;
   private sdkInitPromise: Promise<void>;
   private sdkInitError?: unknown;
   private sdkInitCompleted = false;
 
   constructor() {
     const config = Config.getInstance();
-    this.httpClient = axios.create({
-      baseURL: config.get('baseURL') as string,
-      timeout: config.get('timeout') as number,
-    });
-
-    this.httpClient.interceptors.request.use((reqConfig) => {
-      const currentConfig = Config.getInstance();
-      const accessToken = currentConfig.get('accessToken') as string | undefined;
-      reqConfig.headers = reqConfig.headers || {};
-      const isSdkInitRequest = reqConfig.url === '/api/v1/sdk/init';
-
-      if (!isSdkInitRequest && accessToken) {
-        reqConfig.headers.Authorization = `Bearer ${accessToken}`;
-      } else {
-        delete reqConfig.headers.Authorization;
-      }
-      return reqConfig;
-    });
+    this.baseURL = config.get('baseURL') as string;
+    this.timeout = config.get('timeout') as number;
 
     const apiKey = config.get('apiKey') as string;
     // Start init immediately, but capture failures so they are thrown on awaited requests.
@@ -55,43 +39,7 @@ class APIClient {
       );
     }
 
-    try {
-      const response = await this.httpClient.request<T>({ method, url, data });
-      return response.data;
-    } catch (error: any) {
-      // Categorize errors
-      if (error.response) {
-        const { status, data } = error.response;
-  
-        // Authentication error
-        if (status === 401) {
-          throw new AuthenticationError(data?.message || 'Unauthorised', data);
-        }
-  
-        // Client error (4xx)
-        if (status >= 400 && status < 500) {
-          throw new ClientError(data?.message || 'Client error occurred', status, data);
-        }
-  
-        // Server error (5xx)
-        if (status >= 500) {
-          throw new ServerError(data?.message || 'Server error occurred', status, data);
-        }
-      } else if (error.request) {
-        // Network error
-        const baseURL = Config.getInstance().get('baseURL') as string;
-        throw new NetworkError(
-          `No response received from the server (${baseURL}${url}). Check CORS, protocol (http/https), and network reachability.`,
-          error.request
-        );
-      } else {
-        // Unknown error
-        throw new API2Error('An unknown error occurred.', undefined, error.message);
-      }
-    }
-  
-    // Adding an explicit `return` to satisfy TypeScript's type system
-    throw new Error('Unexpected error: all error cases should be handled above.');
+    return this.performRequest<T>(method, url, data);
   }
 
   private async ensureSDKInitialized(): Promise<void> {
@@ -123,18 +71,16 @@ class APIClient {
 
     for (let attempt = 0; attempt <= retryCount; attempt += 1) {
       try {
-        const response = await this.httpClient.post<{ status?: string }>(
+        const response = await this.performRequest<{ status?: string }>(
+          'POST',
           '/api/v1/sdk/init',
           undefined,
-          {
-            headers: {
-              'x-api-key': apiKey,
-            },
-          }
+          { 'x-api-key': apiKey },
+          true
         );
 
-        if (response.status !== 200 || response.data?.status !== 'ok') {
-          throw new AuthenticationError('SDK initialization rejected by server.', response.data);
+        if (response?.status !== 'ok') {
+          throw new AuthenticationError('SDK initialization rejected by server.', response);
         }
 
         return;
@@ -142,10 +88,7 @@ class APIClient {
         const isLastAttempt = attempt === retryCount;
         const shouldRetry =
           !isLastAttempt &&
-          (
-            Boolean(error?.request && !error?.response) ||
-            (typeof error?.response?.status === 'number' && error.response.status >= 500)
-          );
+          (error instanceof NetworkError || error instanceof ServerError);
 
         if (shouldRetry) {
           await this.sleep(retryDelay);
@@ -153,31 +96,153 @@ class APIClient {
         }
 
         if (error instanceof API2Error) {
+          if (error instanceof ClientError && error.statusCode === 403) {
+            throw new AuthenticationError(error.message || 'SDK initialization unauthorized.', error.details);
+          }
           throw error;
-        }
-
-        if (error.response) {
-          const { status, data } = error.response;
-          if (status === 401 || status === 403) {
-            throw new AuthenticationError(data?.message || 'SDK initialization unauthorized.', data);
-          }
-          if (status >= 400 && status < 500) {
-            throw new ClientError(data?.message || 'SDK initialization client error.', status, data);
-          }
-          if (status >= 500) {
-            throw new ServerError(data?.message || 'SDK initialization server error.', status, data);
-          }
-        } else if (error.request) {
-          const baseURL = Config.getInstance().get('baseURL') as string;
-          throw new NetworkError(
-            `No response received during SDK initialization (${baseURL}/api/v1/sdk/init). Check CORS, protocol (http/https), and network reachability.`,
-            error.request
-          );
         }
 
         throw new API2Error('SDK initialization failed.', undefined, error?.message);
       }
     }
+  }
+
+  private async performRequest<T>(
+    method: string,
+    url: string,
+    data?: any,
+    extraHeaders?: Record<string, string>,
+    skipAuthHeader = false
+  ): Promise<T> {
+    const requestURL = this.buildRequestURL(method, url, data);
+    const uppercaseMethod = method.toUpperCase();
+    const headers: Record<string, string> = { ...(extraHeaders || {}) };
+    const body = this.buildRequestBody(uppercaseMethod, data, headers);
+
+    const accessToken = Config.getInstance().get('accessToken') as string | undefined;
+    if (!skipAuthHeader && !this.isSDKInitEndpoint(url) && accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    } else {
+      delete headers.Authorization;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(requestURL, {
+        method: uppercaseMethod,
+        headers,
+        body,
+        signal: controller.signal,
+      });
+
+      const parsedBody = await this.parseResponseBody(response);
+      if (response.ok) {
+        return parsedBody as T;
+      }
+
+      if (response.status === 401) {
+        throw new AuthenticationError((parsedBody as any)?.message || 'Unauthorised', parsedBody);
+      }
+      if (response.status >= 400 && response.status < 500) {
+        throw new ClientError((parsedBody as any)?.message || 'Client error occurred', response.status, parsedBody);
+      }
+      if (response.status >= 500) {
+        throw new ServerError((parsedBody as any)?.message || 'Server error occurred', response.status, parsedBody);
+      }
+
+      throw new API2Error('An unknown error occurred.', response.status, parsedBody);
+    } catch (error: any) {
+      if (error instanceof API2Error) {
+        throw error;
+      }
+
+      throw new NetworkError(
+        `No response received from the server (${requestURL}). Check CORS, protocol (http/https), and network reachability.`,
+        error
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private buildRequestURL(method: string, url: string, data?: any): string {
+    const requestURL = new URL(url, this.baseURL);
+    const upperMethod = method.toUpperCase();
+
+    if (upperMethod === 'GET' || upperMethod === 'HEAD') {
+      const queryData = this.extractQueryData(data);
+      if (queryData && typeof queryData === 'object') {
+        Object.entries(queryData).forEach(([key, value]) => {
+          if (value === undefined || value === null) return;
+          if (Array.isArray(value)) {
+            value.forEach((item) => requestURL.searchParams.append(key, String(item)));
+            return;
+          }
+          requestURL.searchParams.append(key, String(value));
+        });
+      }
+    }
+
+    return requestURL.toString();
+  }
+
+  private buildRequestBody(method: string, data: any, headers: Record<string, string>): BodyInit | undefined {
+    if (method === 'GET' || method === 'HEAD' || data === undefined) {
+      return undefined;
+    }
+
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+      return data;
+    }
+    if (typeof URLSearchParams !== 'undefined' && data instanceof URLSearchParams) {
+      return data;
+    }
+    if (typeof Blob !== 'undefined' && data instanceof Blob) {
+      return data;
+    }
+    if (typeof ArrayBuffer !== 'undefined' && data instanceof ArrayBuffer) {
+      return data;
+    }
+    if (typeof data === 'string') {
+      return data;
+    }
+
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    return JSON.stringify(data);
+  }
+
+  private extractQueryData(data: any): Record<string, any> | undefined {
+    if (!data || typeof data !== 'object') {
+      return undefined;
+    }
+
+    if (data.params && typeof data.params === 'object') {
+      return data.params as Record<string, any>;
+    }
+
+    return data as Record<string, any>;
+  }
+
+  private async parseResponseBody(response: Response): Promise<unknown> {
+    if (response.status === 204) return undefined;
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        return await response.json();
+      } catch {
+        return undefined;
+      }
+    }
+
+    const text = await response.text();
+    return text.length ? text : undefined;
+  }
+
+  private isSDKInitEndpoint(url: string): boolean {
+    return url === '/api/v1/sdk/init' || url.endsWith('/api/v1/sdk/init');
   }
 
   private sleep(ms: number): Promise<void> {
