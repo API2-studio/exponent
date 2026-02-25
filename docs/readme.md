@@ -14,7 +14,7 @@ await api.auth.login('user@example.com', 'password'); // sets access token + per
 ```
 
 ### Core Concepts
-- `api.client`: Axios-backed client; sends `x-api-key` from config and `Authorization: Bearer <accessToken>` after login.
+- `api.client`: Fetch-backed client; sends `x-api-key` from config and `Authorization: Bearer <accessToken>` after login.
 - SDK auto-initializes via `POST /api/v1/sdk/init` using `x-api-key: <apiKey>`. Requests are blocked unless init returns HTTP `200` with `{ status: 'ok' }`.
 - All requests require login first, except SDK init and the login endpoint itself.
 - `Config` singleton stores `apiKey`, `baseURL`, `timeout`, and cached `permissions`.
