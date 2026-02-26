@@ -2,15 +2,20 @@
   "name": "api2-sdk",
   "version": "1.0.0",
   "description": "SDK for interacting with API2.",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "test": "jest"
+    "build": "tsc -p tsconfig.json",
+    "test": "jest",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
     "@types/node": "^20.3.1",
     "jest": "^29.5.0",
     "typescript": "^5.0.4"
-  }
+  },
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
 }
