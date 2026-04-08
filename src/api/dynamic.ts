@@ -50,12 +50,27 @@ export class DynamicAPI {
   ) {
     const cachedEndpoints = this.readStoredEndpoints();
     this.buildFromEndpointList(cachedEndpoints);
+
+    // Best-effort bootstrap: load public endpoints as soon as SDK is initialized.
+    void this.refreshPublic().catch(() => undefined);
   }
 
-  /** Fetch endpoint definitions and rebuild the function map. */
+  /** Fetch publicly available endpoint definitions and rebuild the function map. */
+  async refreshPublic(params: Partial<EndpointListParams> = {}): Promise<Record<string, DynamicFunction>> {
+    return this.refreshInternal(params, false);
+  }
+
+  /** Fetch authenticated endpoint definitions and rebuild the function map. */
   async refresh(params: Partial<EndpointListParams> = {}): Promise<Record<string, DynamicFunction>> {
+    return this.refreshInternal(params, true);
+  }
+
+  private async refreshInternal(
+    params: Partial<EndpointListParams>,
+    requireAuth: boolean
+  ): Promise<Record<string, DynamicFunction>> {
     const accessToken = this.client.getConfig().get('accessToken') as string | undefined;
-    if (!accessToken) {
+    if (requireAuth && !accessToken) {
       throw new Error('DynamicAPI.refresh requires an access token. Call api.auth.login(...) before refresh().');
     }
 
@@ -63,6 +78,7 @@ export class DynamicAPI {
     const url = this.buildUrl(this.endpointsUrl, undefined, requestParams);
     const response = await this.client.request<EndpointListResponse>('GET', url);
     const records = response?.data || [];
+
     this.buildFromEndpointList(records);
     this.storeEndpoints(records);
     return this.endpoints;

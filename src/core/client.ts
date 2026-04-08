@@ -33,12 +33,6 @@ class APIClient {
       await this.ensureSDKInitialized();
     }
 
-    if (this.requiresAccessToken(url) && !this.hasAccessToken()) {
-      throw new AuthenticationError(
-        `Access token missing for ${url}. Call api.auth.login(...) before making this request.`
-      );
-    }
-
     return this.performRequest<T>(method, url, data);
   }
 
@@ -75,7 +69,7 @@ class APIClient {
           'POST',
           '/api/v1/sdk/init',
           undefined,
-          { 'x-api-key': apiKey },
+          { 'X-Api-Key': apiKey },
           true
         );
 
@@ -118,12 +112,17 @@ class APIClient {
     const uppercaseMethod = method.toUpperCase();
     const headers: Record<string, string> = { ...(extraHeaders || {}) };
     const body = this.buildRequestBody(uppercaseMethod, data, headers);
+    const apiKey = Config.getInstance().get('apiKey') as string | undefined;
 
     const accessToken = Config.getInstance().get('accessToken') as string | undefined;
     if (!skipAuthHeader && !this.isSDKInitEndpoint(url) && accessToken) {
       headers.Authorization = `Bearer ${accessToken}`;
     } else {
       delete headers.Authorization;
+    }
+
+    if (apiKey && !this.hasHeader(headers, 'X-Api-Key')) {
+      headers['X-Api-Key'] = apiKey;
     }
 
     const controller = new AbortController();
@@ -245,6 +244,11 @@ class APIClient {
     return url === '/api/v1/sdk/init' || url.endsWith('/api/v1/sdk/init');
   }
 
+  private hasHeader(headers: Record<string, string>, headerName: string): boolean {
+    const target = headerName.toLowerCase();
+    return Object.keys(headers).some((key) => key.toLowerCase() === target);
+  }
+
   private sleep(ms: number): Promise<void> {
     if (!ms || ms <= 0) return Promise.resolve();
     return new Promise((resolve) => {
@@ -252,17 +256,6 @@ class APIClient {
     });
   }
 
-  private hasAccessToken(): boolean {
-    const token = Config.getInstance().get('accessToken') as string | undefined;
-    return Boolean(token);
-  }
-
-  private requiresAccessToken(url: string): boolean {
-    return ![
-      '/api/v1/sdk/init',
-      '/api/v1/authentication/identity/callback',
-    ].includes(url);
-  }
 }
 
 export default APIClient;
