@@ -2,7 +2,6 @@ import APIClient from '../core/client';
 
 export interface GroupPayload {
     name: string;
-    description?: string;
 }
 
 export class GroupAPI {

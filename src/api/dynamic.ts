@@ -1,6 +1,6 @@
 import APIClient from '../core/client';
 
-type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'options' | 'head';
+type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 type SortDirection = 'asc' | 'desc';
 
 export interface DynamicCallArgs {

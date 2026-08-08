@@ -1,9 +1,35 @@
 import APIClient from '../core/client';
 
+export type WorkflowActionData = Record<string, unknown>;
+
+export interface WorkflowTrigger {
+    event_source: string;
+    event_type: string;
+    table_name?: string;
+    [key: string]: unknown;
+}
+
+/**
+ * A workflow task. Tasks can be chained or branched recursively.
+ */
+export interface WorkflowTask {
+    name: string;
+    action: string;
+    action_data?: WorkflowActionData;
+    initial?: boolean;
+    condition?: string;
+    next_task?: WorkflowTask;
+    on_true?: WorkflowTask;
+    on_false?: WorkflowTask;
+}
+
 export interface WorkflowPayload {
     name: string;
     description?: string;
     status?: string;
+    repeatable?: boolean;
+    triggers?: WorkflowTrigger[];
+    tasks?: WorkflowTask[];
 }
 
 export class WorkflowAPI {
@@ -29,4 +55,3 @@ export class WorkflowAPI {
         return this.client.request('DELETE', `/api/v1/workflows/${workflowId}`);
     }
 }
-

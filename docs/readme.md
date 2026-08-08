@@ -75,6 +75,42 @@ await api.table.createTable({
 const roles = await api.roles.listRoles();
 await api.groups.createGroup({ name: 'QA' });
 await api.workflows.updateWorkflow('9cac5fac-e862-4f90-ab04-c6e023a87313', { status: 'active' });
+
+await api.workflows.createWorkflow({
+  name: 'New Employee Onboarding',
+  description: 'Provision accounts and send welcome docs for a new hire',
+  repeatable: true,
+  acl: { roles: ['hr_admin'] },
+  triggers: [{ event_source: 'db', event_type: 'insert', table_name: 'users' }],
+  tasks: [{
+    name: 'Create accounts',
+    action: 'createRecord',
+    action_data: {
+      name: '{{context.trigger_response.name}}',
+      email: '{{context.trigger_response.email}}',
+    },
+    initial: true,
+    next_task: {
+      name: 'Send welcome email',
+      action: 'sendEmail',
+      action_data: {
+        template: 'welcome',
+        to: '{{context.trigger_response.email}}',
+      },
+      condition: 'context.trigger_response.name != admin',
+      on_true: {
+        name: 'Log success',
+        action: 'logInfo',
+        action_data: { info: { message: 'Onboarding Success!' } },
+      },
+      on_false: {
+        name: 'Log error',
+        action: 'logError',
+        action_data: { error: { message: 'Admin is already onboarded!' } },
+      },
+    },
+  }],
+});
 ```
 
 ### Data & Encoder (`src/api/data.ts`, `src/api/encoder.ts`)

@@ -20,6 +20,12 @@ export { DynamicAPI } from './api/dynamic';
 export { RoleAPI } from './api/role';
 export { GroupAPI } from './api/group';
 export { WorkflowAPI } from './api/workflow';
+export type {
+  WorkflowActionData,
+  WorkflowPayload,
+  WorkflowTask,
+  WorkflowTrigger,
+} from './api/workflow';
 
 class API2 {
   user: UserAPI;
